@@ -1,0 +1,19 @@
+services:
+  caddy:
+    container_name: tesla_caddy
+    image: caddy
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+      - ./secrets/pubplic-key.pem:/opt/serve/.well-known/appspecific/com.tesla.3p.public-key.pem:ro
+
+  tunnel:
+    image: cloudflare/cloudflared
+    container_name: tesla-fleet-tunnel
+    restart: unless-stopped
+    command: tunnel run
+    env_file:
+      - ./secrets/.cloudflare-token.env
+
