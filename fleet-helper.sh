@@ -105,7 +105,7 @@ function register_app() {
         --header "Authorization: Bearer ${tocken}" \
         --header "Content-Type: application/json", \
         --data "{\"domain\": \"${domain}\"}" \
-        "${base_url}"    
+        "${base_url}"/api/1/partner_accounts
 }
 
 
