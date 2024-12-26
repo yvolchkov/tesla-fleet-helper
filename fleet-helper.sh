@@ -49,33 +49,33 @@ function get_cloudflare_tocken() {
 }
 
 function serve_public_key() {
-    local out_dir="$1"
+    local secrets_dir="$1"
     local cloudflare_tocken=""
     
-    cloudflare_tocken="$(get_cloudflare_tocken "${out_dir}")"
+    cloudflare_tocken="$(get_cloudflare_tocken "${secrets_dir}")"
 
-    if [[ ! -f "${out_dir}"/private-key.pem ]]; then
-        openssl ecparam -name prime256v1 -genkey -noout -out "${out_dir}"/private-key.pem
-        openssl ec -in "${out_dir}"/private-key.pem -pubout -out "${out_dir}"/public-key.pem
+    if [[ ! -f "${secrets_dir}"/private-key.pem ]]; then
+        openssl ecparam -name prime256v1 -genkey -noout -out "${secrets_dir}"/private-key.pem
+        openssl ec -in "${secrets_dir}"/private-key.pem -pubout -out "${secrets_dir}"/public-key.pem
     else
         echo "Skip creating ssl keys"
     fi
 
     mkdir -p /opt/serve/.well-known/appspecific/
-    ln -s "$(readlink -f "${out_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
+    ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
     cloudflared service install "${cloudflare_tocken}"
     caddy start -c /root/Caddyfile 2> /var/log/caddy_startup.log
 }
 
 function get_partner_token() {
-    local out_dir="$1"
+    local secrets_dir="$1"
     local audience="$2"
     local client_id=""
     local client_secret=""
 
     >&2 echo "Requesting partner tocken"
 
-    read -r client_id client_secret <<< "$(get_tesla_creds "${out_dir}")"
+    read -r client_id client_secret <<< "$(get_tesla_creds "${secrets_dir}")"
 
     local resp=""
     resp="$(curl --silent  --request POST \
@@ -124,8 +124,8 @@ EOF
 }
 
 function get_tesla_creds() {
-    local out_dir="$1"
-    local creds_file_path="${out_dir}/tesla_app_credentials.txt"
+    local secrets_dir="$1"
+    local creds_file_path="${secrets_dir}/tesla_app_credentials.txt"
 
     local client_id=""
     local client_secret=""
@@ -155,7 +155,7 @@ function get_tesla_creds() {
 }
 
 function check_public_key() {
-    local out_dir="$1"
+    local secrets_dir="$1"
     local domain="$2"
     local downloaded_key=""
     local expected_key=""
@@ -182,7 +182,7 @@ function check_public_key() {
     printf "\n"
 
     downloaded_key="$(curl -s "${full_url}")"
-    expected_key="$(<"${out_dir}"/public-key.pem)"
+    expected_key="$(<"${secrets_dir}"/public-key.pem)"
 
     if [[ "${downloaded_key}" != "${expected_key}" ]]; then
         >&2 echo "Fatal: downloaded public key is incorrect"
@@ -236,9 +236,8 @@ function get_base_url() {
 }
 
 function main() {
-    local out_dir=keys
+    local secrets_dir=/secrets
     local tocken=unknown
-    # serve_public_key "${out_dir}"
 
     local short_options="d:r:h"
     local long_options=domain:,region:,help
@@ -282,14 +281,12 @@ function main() {
 
     base_url="$(get_base_url "${region}")"
 
-    mkdir -p "${out_dir}"
-
-    serve_public_key "${out_dir}"
-    check_public_key "${out_dir}" "${domain}"
-    tocken="$(get_partner_token "${out_dir}" "${base_url}")"
+    serve_public_key "${secrets_dir}"
+    check_public_key "${secrets_dir}" "${domain}"
+    tocken="$(get_partner_token "${secrets_dir}" "${base_url}")"
     local resp=""
     resp="$(register_app "${domain}" "${tocken}" "${base_url}")"
-    echo "${resp}" > "${out_dir}"/register_app_resp.jq
+    echo "${resp}" > "${secrets_dir}"/register_app_resp.jq
     >&2 jq . <<< "${resp}"
 }
 
