@@ -24,14 +24,14 @@ function get_scopes() {
     (IFS=" "; echo "${scopes[*]}")
 }
 
-function get_cloudflare_tocken() {
+function get_cloudflare_token() {
     local secrets_dir="$1"
-    local cloudflare_tocker_file_path="${secrets_dir}"/cloudflare_tocken.env
+    local cloudflare_tocker_file_path="${secrets_dir}"/cloudflare_token.env
     local TUNNEL_TOKEN=""
 
     if [[ ! -f "${cloudflare_tocker_file_path}" ]]; then
         >&2 echo "File ${cloudflare_tocker_file_path} not found"
-        >&2 printf "Enter your cloudflare tunnel tocken\n>>>"
+        >&2 printf "Enter your cloudflare tunnel token\n>>>"
         read -r TUNNEL_TOKEN
         echo  "TUNNEL_TOKEN=${TUNNEL_TOKEN}" > "${cloudflare_tocker_file_path}"
     else
@@ -50,9 +50,9 @@ function get_cloudflare_tocken() {
 
 function serve_public_key() {
     local secrets_dir="$1"
-    local cloudflare_tocken=""
+    local cloudflare_token=""
     
-    cloudflare_tocken="$(get_cloudflare_tocken "${secrets_dir}")"
+    cloudflare_token="$(get_cloudflare_token "${secrets_dir}")"
 
     if [[ ! -f "${secrets_dir}"/private-key.pem ]]; then
         openssl ecparam -name prime256v1 -genkey -noout -out "${secrets_dir}"/private-key.pem
@@ -63,7 +63,7 @@ function serve_public_key() {
 
     mkdir -p /opt/serve/.well-known/appspecific/
     ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
-    cloudflared service install "${cloudflare_tocken}"
+    cloudflared service install "${cloudflare_token}"
     caddy start -c /root/Caddyfile 2> /var/log/caddy_startup.log
 }
 
@@ -73,7 +73,7 @@ function get_partner_token() {
     local client_id=""
     local client_secret=""
 
-    >&2 echo "Requesting partner tocken"
+    >&2 echo "Requesting partner token"
 
     read -r client_id client_secret <<< "$(get_tesla_creds "${secrets_dir}")"
 
@@ -93,7 +93,7 @@ function get_partner_token() {
 
 function register_app() {
     local domain="$1"
-    local tocken="$2"
+    local token="$2"
     local base_url="$3"
 
     >&2 echo "Registering thirdparty app"
@@ -102,7 +102,7 @@ function register_app() {
     domain="${domain#https://}"
 
     curl  --silent  --request POST \
-        --header "Authorization: Bearer ${tocken}" \
+        --header "Authorization: Bearer ${token}" \
         --header "Content-Type: application/json", \
         --data "{\"domain\": \"${domain}\"}" \
         "${base_url}"/api/1/partner_accounts
@@ -237,7 +237,7 @@ function get_base_url() {
 
 function main() {
     local secrets_dir=/secrets
-    local tocken=unknown
+    local token=unknown
 
     local short_options="d:r:h"
     local long_options=domain:,region:,help
@@ -283,9 +283,9 @@ function main() {
 
     serve_public_key "${secrets_dir}"
     check_public_key "${secrets_dir}" "${domain}"
-    tocken="$(get_partner_token "${secrets_dir}" "${base_url}")"
+    token="$(get_partner_token "${secrets_dir}" "${base_url}")"
     local resp=""
-    resp="$(register_app "${domain}" "${tocken}" "${base_url}")"
+    resp="$(register_app "${domain}" "${token}" "${base_url}")"
     echo "${resp}" > "${secrets_dir}"/register_app_resp.jq
     >&2 jq . <<< "${resp}"
 }
