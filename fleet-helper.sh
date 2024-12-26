@@ -26,7 +26,7 @@ function get_scopes() {
 
 function get_cloudflare_tocken() {
     local secrets_dir="$1"
-    local cloudflare_tocker_file_path="${secrets_dir}"/.cloudflare_tocken.env
+    local cloudflare_tocker_file_path="${secrets_dir}"/cloudflare_tocken.env
     local TUNNEL_TOKEN=""
 
     if [[ ! -f "${cloudflare_tocker_file_path}" ]]; then

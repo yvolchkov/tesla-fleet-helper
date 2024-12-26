@@ -15,5 +15,5 @@ services:
     restart: unless-stopped
     command: tunnel run
     env_file:
-      - ./secrets/.cloudflare-token.env
+      - ./secrets/cloudflare_token.env
 
