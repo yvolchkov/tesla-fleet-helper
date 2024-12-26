@@ -46,8 +46,8 @@ docker run -it --rm \
     --region EMEA
 ```
 
-[!NOTE] 
-Replace fleet.example.com with the domain (or subdomain) you chose in your Cloudflare Tunnel setup.
+> [!NOTE] 
+> Replace fleet.example.com with the domain (or subdomain) you chose in your Cloudflare Tunnel setup.
 
 Regions Supported:
  - **NA_APAC** for North America and Asia-Pacific (excluding China).
