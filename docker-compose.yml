@@ -3,6 +3,7 @@ services:
 
   teslalogger:
     build: docker/teslalogger/.
+    container_name: teslalogger
     restart: always
     init: true
     volumes:
@@ -33,6 +34,7 @@ services:
       - TZ=Europe/Berlin
 
   grafana:
+    container_name: teslalogger-grafana
     image: grafana/grafana:10.0.1
     restart: always
     environment:
