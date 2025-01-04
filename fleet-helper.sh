@@ -21,7 +21,10 @@ function get_scopes() {
         # energy_cmds
     )
 
-    (IFS=" "; echo "${scopes[*]}")
+    (
+        IFS=" "
+        echo "${scopes[*]}"
+    )
 }
 
 function get_cloudflare_token() {
@@ -33,7 +36,7 @@ function get_cloudflare_token() {
         >&2 echo "File ${cloudflare_tocker_file_path} not found"
         >&2 printf "Enter your cloudflare tunnel token\n>>>"
         read -r TUNNEL_TOKEN
-        echo  "TUNNEL_TOKEN=${TUNNEL_TOKEN}" > "${cloudflare_tocker_file_path}"
+        echo "TUNNEL_TOKEN=${TUNNEL_TOKEN}" >"${cloudflare_tocker_file_path}"
     else
         # shellcheck disable=SC1090
         source "${cloudflare_tocker_file_path}"
@@ -51,7 +54,7 @@ function get_cloudflare_token() {
 function serve_public_key() {
     local secrets_dir="$1"
     local cloudflare_token=""
-    
+
     cloudflare_token="$(get_cloudflare_token "${secrets_dir}")"
 
     if [[ ! -f "${secrets_dir}"/private-key.pem ]]; then
@@ -64,7 +67,7 @@ function serve_public_key() {
     mkdir -p /opt/serve/.well-known/appspecific/
     ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
     cloudflared service install "${cloudflare_token}"
-    caddy start -c /root/Caddyfile 2> /var/log/caddy_startup.log
+    caddy start -c /root/Caddyfile 2>/var/log/caddy_startup.log
 }
 
 function get_partner_token() {
@@ -75,10 +78,10 @@ function get_partner_token() {
 
     >&2 echo "Requesting partner token"
 
-    read -r client_id client_secret <<< "$(get_tesla_creds "${secrets_dir}")"
+    read -r client_id client_secret <<<"$(get_tesla_creds "${secrets_dir}")"
 
     local resp=""
-    resp="$(curl --silent  --request POST \
+    resp="$(curl --silent --request POST \
         --header 'Content-Type: application/x-www-form-urlencoded' \
         --data-urlencode 'grant_type=client_credentials' \
         --data-urlencode "client_id=${client_id}" \
@@ -88,7 +91,7 @@ function get_partner_token() {
         'https://auth.tesla.com/oauth2/v3/token')"
 
     # >&2 jq . <<< "${resp}"
-    jq --raw-output '.access_token' <<< "${resp}"
+    jq --raw-output '.access_token' <<<"${resp}"
 }
 
 function register_app() {
@@ -101,13 +104,12 @@ function register_app() {
     # That's odd, but request doesn't work with https://
     domain="${domain#https://}"
 
-    curl  --silent  --request POST \
+    curl --silent --request POST \
         --header "Authorization: Bearer ${token}" \
         --header "Content-Type: application/json", \
         --data "{\"domain\": \"${domain}\"}" \
         "${base_url}"/api/1/partner_accounts
 }
-
 
 function usage() {
     >&2 cat <<EOF
@@ -120,7 +122,7 @@ Options:
   -h, --help                Print this help message and exit
 EOF
 
-  exit 1
+    exit 1
 }
 
 function get_tesla_creds() {
@@ -147,8 +149,8 @@ function get_tesla_creds() {
         >&2 printf "And now enter client secret\n>>>"
         read -r client_secret
 
-        echo "client_id=${client_id}" > "${creds_file_path}"
-        echo "client_secret=${client_secret}" >> "${creds_file_path}"
+        echo "client_id=${client_id}" >"${creds_file_path}"
+        echo "client_secret=${client_secret}" >>"${creds_file_path}"
     fi
 
     echo "${client_id}" "${client_secret}"
@@ -173,7 +175,7 @@ function check_public_key() {
         sleep 2
         printf "."
     done
-    
+
     if [[ "${available}" == false ]]; then
         printf "\n ... giving up"
         exit 1
@@ -191,7 +193,7 @@ function check_public_key() {
 }
 
 function normalize_url() {
-    url="$1"  # Accept URL as the first argument to the script
+    url="$1" # Accept URL as the first argument to the script
 
     #strip trailing slash
     url="${url%/}"
@@ -227,7 +229,7 @@ function get_base_url() {
             echo https://fleet-api.prd.na.vn.cloud.tesla.com
             return
             ;;
-        * )
+        *)
             >&2 echo "Unknown region ${region}."
             >&2 get_available_regions_help
             exit 1
@@ -246,32 +248,31 @@ function main() {
     local region="${default_region}"
     local base_url=""
 
-
     OPTS="$(getopt -o "${short_options}" --long "${long_options}" -n "$(basename "$0")" -- "$@")"
     eval set -- "${OPTS}"
     while true; do
-	case "$1" in
-        -d|--domain)
-            domain="$(normalize_url "$2")"
-            shift 2
-            ;;
-        -r|--region)
-            region="$2"
-            shift 2
-            ;;
-        -h|--help)
-            shift 1
-            usage
-            ;;
-	    -- ) 
-            shift;
-            break
-            ;;
-	    * ) 
-            >&2 echo "Unknown option $1"
-            exit 1
-            ;;
-	esac
+        case "$1" in
+            -d | --domain)
+                domain="$(normalize_url "$2")"
+                shift 2
+                ;;
+            -r | --region)
+                region="$2"
+                shift 2
+                ;;
+            -h | --help)
+                shift 1
+                usage
+                ;;
+            --)
+                shift
+                break
+                ;;
+            *)
+                >&2 echo "Unknown option $1"
+                exit 1
+                ;;
+        esac
     done
 
     if [[ -z "${domain}" ]]; then
@@ -286,8 +287,8 @@ function main() {
     token="$(get_partner_token "${secrets_dir}" "${base_url}")"
     local resp=""
     resp="$(register_app "${domain}" "${token}" "${base_url}")"
-    echo "${resp}" > "${secrets_dir}"/register_app_resp.jq
-    >&2 jq . <<< "${resp}"
+    echo "${resp}" >"${secrets_dir}"/register_app_resp.jq
+    >&2 jq . <<<"${resp}"
 }
 
 main "$@"
