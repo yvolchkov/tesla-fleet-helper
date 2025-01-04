@@ -58,7 +58,7 @@ function serve_public_key() {
     cloudflare_token="$(get_cloudflare_token "${secrets_dir}")"
 
     if [[ ! -f "${secrets_dir}"/private-key.pem ]]; then
-        openssl ecparam -name prime256v1 -genkey -noout -out "${secrets_dir}"/private-key.pem
+      openssl ecparam -name prime256v1 -genkey -noout -out "${secrets_dir}"/private-key.pem
         openssl ec -in "${secrets_dir}"/private-key.pem -pubout -out "${secrets_dir}"/public-key.pem
     else
         echo "Skip creating ssl keys"
@@ -77,6 +77,8 @@ function get_partner_token() {
     local client_secret=""
 
     >&2 echo "Requesting partner token"
+
+    echo $client_secret
 
     read -r client_id client_secret <<<"$(get_tesla_creds "${secrets_dir}")"
 
