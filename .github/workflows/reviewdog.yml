@@ -1,0 +1,26 @@
+name: reviewdog
+on:
+    push:
+      branches: [ main ]
+    pull_request:
+      branches: [ main ]
+
+jobs:
+  shfmt:
+    name: runner / shfmt
+    runs-on: ubuntu-latest
+    permissions:
+        contents: read
+        pull-requests: write
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run reviewdog
+        uses: reviewdog/action-shfmt@v1
+        with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            workdir: '.'
+            level: 'warning'
+            filter_mode: 'added'
+            # fail_level: 'error'  # Updated flag
+            # reviewdog_flags: '-f=sarif'
+            shfmt_flags: '--indent 4 --case-indent'
