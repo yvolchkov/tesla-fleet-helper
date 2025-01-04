@@ -78,7 +78,7 @@ function get_partner_token() {
 
     >&2 echo "Requesting partner token"
 
-    echo $client_secret
+     echo $client_secret
 
     read -r client_id client_secret <<<"$(get_tesla_creds "${secrets_dir}")"
 
