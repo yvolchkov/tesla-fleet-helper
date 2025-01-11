@@ -1,0 +1,12 @@
+
+:443 {
+
+    tls /keys/fullchain.pem /keys/private.pem
+    root * /opt/serve
+    file_server
+
+    log {
+        level INFO
+        output file /var/log/caddy.log
+    }
+}

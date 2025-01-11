@@ -51,11 +51,8 @@ function get_cloudflare_token() {
     echo "${TUNNEL_TOKEN}"
 }
 
-function serve_public_key() {
+function gen_tesla_keys() {
     local secrets_dir="$1"
-    local cloudflare_token=""
-
-    cloudflare_token="$(get_cloudflare_token "${secrets_dir}")"
 
     if [[ ! -f "${secrets_dir}"/private-key.pem ]]; then
         openssl ecparam -name prime256v1 -genkey -noout -out "${secrets_dir}"/private-key.pem
@@ -63,11 +60,14 @@ function serve_public_key() {
     else
         echo "Skip creating ssl keys"
     fi
+}
 
-    mkdir -p /opt/serve/.well-known/appspecific/
-    ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
+function tunnel_start() {
+    local cloudflare_token=""
+
+    cloudflare_token="$(get_cloudflare_token "${secrets_dir}")"
+
     cloudflared service install "${cloudflare_token}"
-    caddy start -c /root/Caddyfile 2>/var/log/caddy_startup.log
 }
 
 function get_partner_token() {
@@ -242,11 +242,12 @@ function main() {
     local token=unknown
 
     local short_options="d:r:h"
-    local long_options=domain:,region:,help
+    local long_options=domain:,region:,no-cf-tunnel,help
 
     local domain=""
     local region="${default_region}"
     local base_url=""
+    local no_cf_tunnel=false
 
     OPTS="$(getopt -o "${short_options}" --long "${long_options}" -n "$(basename "$0")" -- "$@")"
     eval set -- "${OPTS}"
@@ -264,6 +265,10 @@ function main() {
                 shift 1
                 usage
                 ;;
+            --no-cf-tunnel)
+                no_cf_tunnel=true
+                shift 1
+                ;;
             --)
                 shift
                 break
@@ -275,15 +280,35 @@ function main() {
         esac
     done
 
-    if [[ -z "${domain}" ]]; then
-        >&2 echo "Missing required option --domain"
-        exit 1
-    fi
+    # if [[ -z "${domain}" ]]; then
+    #     >&2 echo "Missing required option --domain"
+    #     exit 1
+    # fi
 
     base_url="$(get_base_url "${region}")"
 
-    serve_public_key "${secrets_dir}"
-    check_public_key "${secrets_dir}" "${domain}"
+    gen_tesla_keys "${secrets_dir}"
+    mkdir -p /opt/serve/"$(dirname "${key_url_path}")"
+    ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
+
+    if [[ "${no_cf_tunnel}" == false ]]; then
+        tunnel_start "${secrets_dir}"
+        caddy start -c /root/Caddyfile 2>/var/log/caddy_startup.log
+    else
+        caddy start -c /root/Caddyfile-nocf 2>/var/log/caddy_startup.log
+    fi
+
+    if [[ -n "${domain}" ]]; then
+        check_public_key "${secrets_dir}" "${domain}"
+    else
+        >&2 echo "Skip checking public key. Waiting 10secods instead. Specify --domain if you want script to check if key is published"
+        >&2 echo "If you are enabeling this option because your ISP doesn't let you to access your own share from you own external IP"
+        >&2 echo "you might still want to check if"
+        >&2 echo "${domain}/${key_url_path}"
+        >&2 echo "is available from your phone or other network"
+        sleep 10
+    fi
+
     token="$(get_partner_token "${secrets_dir}" "${base_url}")"
     local resp=""
     resp="$(register_app "${domain}" "${token}" "${base_url}")"

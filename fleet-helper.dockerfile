@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY Caddyfile /root/Caddyfile
+COPY Caddyfile-nocf /root/Caddyfile-nocf
 
 COPY fleet-helper.sh /usr/bin/fleet-helper
 
