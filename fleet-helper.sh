@@ -36,7 +36,7 @@ function get_cloudflare_token() {
         >&2 echo "File ${cloudflare_tocker_file_path} not found"
         >&2 printf "Enter your cloudflare tunnel token\n>>>"
         read -r TUNNEL_TOKEN
-        echo "TUNNEL_TOKEN=${TUNNEL_TOKEN}" >"${cloudflare_tocker_file_path}"
+        echo "TUNNEL_TOKEN=${TUNNEL_TOKEN}" > "${cloudflare_tocker_file_path}"
     else
         # shellcheck disable=SC1090
         source "${cloudflare_tocker_file_path}"
@@ -95,7 +95,7 @@ function get_partner_token() {
         'https://auth.tesla.com/oauth2/v3/token')"
 
     # >&2 jq . <<< "${resp}"
-    jq --raw-output '.access_token' <<<"${resp}"
+    jq --raw-output '.access_token' <<< "${resp}"
 }
 
 function register_app() {
@@ -115,7 +115,7 @@ function register_app() {
         "${base_url}"/api/1/partner_accounts
 }
 
-function  verify_registered_app() {
+function verify_registered_app() {
     local domain="$1"
     local token="$2"
     local base_url="$3"
@@ -123,16 +123,16 @@ function  verify_registered_app() {
     # That's odd, but request doesn't work with https://
     domain="${domain#https://}"
 
-        # --data "{\"domain\": \"${domain}\"}" \
+    # --data "{\"domain\": \"${domain}\"}" \
     local json=""
     json="$(curl --silent --request GET \
         --header "Authorization: Bearer ${token}" \
         --header "Content-Type: application/json", \
         "${base_url}"/api/1/partner_accounts/public_key?domain="${domain}")"
     local received_key=""
-    received_key="$(jq --raw-output '.response.public_key' <<<"${json}")"
+    received_key="$(jq --raw-output '.response.public_key' <<< "${json}")"
 
-    hex="$(2>/dev/null openssl ec -pubin -in /secrets/public-key.pem -text -noout)"
+    hex="$(2> /dev/null openssl ec -pubin -in /secrets/public-key.pem -text -noout)"
 
     # 1. Extract lines between 'pub:' and 'ASN1 OID:'
     hex="$(sed -n '/^pub:/, /ASN1 OID:/p' <<< "${hex}")"
@@ -142,7 +142,7 @@ function  verify_registered_app() {
 
     # 3. Remove '^ASN1 OID:' lines, spaces, newlines, and colons
     hex="$(grep -v '^ASN1 OID:' <<< "${hex}" | tr -d ' \n:')"
-    
+
     if [[ "${received_key}" != "${hex}" ]]; then
         >&2 echo "Fatal: public key mismatch"
         >&2 echo "Expected: ${hex}"
@@ -154,7 +154,7 @@ function  verify_registered_app() {
 }
 
 function usage() {
-    >&2 cat <<EOF
+    >&2 cat << EOF
 Helper script to bootstrap certificates and register 3p app at developer.tesla.com
 
 Usage:
@@ -192,8 +192,8 @@ function get_tesla_creds() {
         >&2 printf "And now enter client secret\n>>>"
         read -r client_secret
 
-        echo "client_id='${client_id}'" >"${creds_file_path}"
-        echo "client_secret='${client_secret}'" >>"${creds_file_path}"
+        echo "client_id='${client_id}'" > "${creds_file_path}"
+        echo "client_secret='${client_secret}'" >> "${creds_file_path}"
     fi
 
     echo "${client_id}" "${client_secret}"
@@ -227,7 +227,7 @@ function check_public_key() {
     printf "\n"
 
     downloaded_key="$(curl -s "${full_url}")"
-    expected_key="$(<"${secrets_dir}"/public-key.pem)"
+    expected_key="$(< "${secrets_dir}"/public-key.pem)"
 
     if [[ "${downloaded_key}" != "${expected_key}" ]]; then
         >&2 echo "Fatal: downloaded public key is incorrect"
@@ -335,16 +335,15 @@ function main() {
 
     base_url="$(get_base_url "${region}")"
 
-
     gen_tesla_keys "${secrets_dir}"
     mkdir -p /opt/serve/"$(dirname "${key_url_path}")"
     ln -s "$(readlink -f "${secrets_dir}"/public-key.pem)" /opt/serve/"${key_url_path}"
 
     if [[ "${no_cf_tunnel}" == false ]]; then
         tunnel_start "${secrets_dir}"
-        caddy start -c /root/Caddyfile 2>/var/log/caddy_startup.log
+        caddy start -c /root/Caddyfile 2> /var/log/caddy_startup.log
     else
-        caddy start -c /root/Caddyfile-nocf 2>/var/log/caddy_startup.log
+        caddy start -c /root/Caddyfile-nocf 2> /var/log/caddy_startup.log
     fi
 
     if [[ "${skip_https_check}" == false ]]; then
@@ -361,8 +360,8 @@ function main() {
     token="$(get_partner_token "${secrets_dir}" "${base_url}")"
     local resp=""
     resp="$(register_app "${domain}" "${token}" "${base_url}")"
-    echo "${resp}" >"${secrets_dir}"/register_app_resp.jq
-    >&2 jq . <<<"${resp}"
+    echo "${resp}" > "${secrets_dir}"/register_app_resp.jq
+    >&2 jq . <<< "${resp}"
 
     verify_registered_app "${domain}" "${token}" "${base_url}"
 
