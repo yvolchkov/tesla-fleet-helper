@@ -78,7 +78,11 @@ function get_partner_token() {
 
     >&2 echo "Requesting partner token"
 
-    read -r client_id client_secret <<<"$(get_tesla_creds "${secrets_dir}")"
+    if ! creds="$(get_tesla_creds "${secrets_dir}")"; then
+        echo "Error: get_tesla_creds failed." >&2
+        exit 1
+    fi
+    read -r client_id client_secret <<< "${creds}"
 
     local resp=""
     resp="$(curl --silent --request POST \
@@ -149,8 +153,8 @@ function get_tesla_creds() {
         >&2 printf "And now enter client secret\n>>>"
         read -r client_secret
 
-        echo "client_id=${client_id}" >"${creds_file_path}"
-        echo "client_secret=${client_secret}" >>"${creds_file_path}"
+        echo "client_id='${client_id}'" >"${creds_file_path}"
+        echo "client_secret='${client_secret}'" >>"${creds_file_path}"
     fi
 
     echo "${client_id}" "${client_secret}"
