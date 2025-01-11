@@ -115,6 +115,44 @@ function register_app() {
         "${base_url}"/api/1/partner_accounts
 }
 
+function  verify_registered_app() {
+    local domain="$1"
+    local token="$2"
+    local base_url="$3"
+
+    # That's odd, but request doesn't work with https://
+    domain="${domain#https://}"
+
+        # --data "{\"domain\": \"${domain}\"}" \
+    local json=""
+    json="$(curl --silent --request GET \
+        --header "Authorization: Bearer ${token}" \
+        --header "Content-Type: application/json", \
+        "${base_url}"/api/1/partner_accounts/public_key?domain="${domain}")"
+    local received_key=""
+    received_key="$(jq --raw-output '.response.public_key' <<<"${json}")"
+
+    hex="$(2>/dev/null openssl ec -pubin -in /secrets/public-key.pem -text -noout)"
+
+    # 1. Extract lines between 'pub:' and 'ASN1 OID:'
+    hex="$(sed -n '/^pub:/, /ASN1 OID:/p' <<< "${hex}")"
+
+    # 2. Remove '^pub:' lines
+    hex="$(grep -v '^pub:' <<< "${hex}")"
+
+    # 3. Remove '^ASN1 OID:' lines, spaces, newlines, and colons
+    hex="$(grep -v '^ASN1 OID:' <<< "${hex}" | tr -d ' \n:')"
+    
+    if [[ "${received_key}" != "${hex}" ]]; then
+        >&2 echo "Fatal: public key mismatch"
+        >&2 echo "Expected: ${hex}"
+        >&2 echo "Received: ${received_key}"
+        exit 1
+    fi
+
+    echo "Public key returned from tesla matches the one we have - registration successful"
+}
+
 function usage() {
     >&2 cat <<EOF
 Helper script to bootstrap certificates and register 3p app at developer.tesla.com
@@ -144,6 +182,7 @@ function get_tesla_creds() {
             >&2 echo "Either fix file or deleted and let script to help you to create it"
             exit 1
         fi
+        echo "${client_id}" "${client_secret}"
     else
         >&2 echo "File ${creds_file_path} not found"
         >&2 echo "Go to https://developer.tesla.com and register an account"
@@ -246,12 +285,13 @@ function main() {
     local token=unknown
 
     local short_options="d:r:h"
-    local long_options=domain:,region:,no-cf-tunnel,help
+    local long_options=domain:,region:,no-cf-tunnel,skip-https-check,help
 
     local domain=""
     local region="${default_region}"
     local base_url=""
     local no_cf_tunnel=false
+    local skip_https_check=false
 
     OPTS="$(getopt -o "${short_options}" --long "${long_options}" -n "$(basename "$0")" -- "$@")"
     eval set -- "${OPTS}"
@@ -273,6 +313,10 @@ function main() {
                 no_cf_tunnel=true
                 shift 1
                 ;;
+            --skip-https-check)
+                skip_https_check=true
+                shift 1
+                ;;
             --)
                 shift
                 break
@@ -284,12 +328,13 @@ function main() {
         esac
     done
 
-    # if [[ -z "${domain}" ]]; then
-    #     >&2 echo "Missing required option --domain"
-    #     exit 1
-    # fi
+    if [[ -z "${domain}" ]]; then
+        >&2 echo "Missing required option --domain"
+        exit 1
+    fi
 
     base_url="$(get_base_url "${region}")"
+
 
     gen_tesla_keys "${secrets_dir}"
     mkdir -p /opt/serve/"$(dirname "${key_url_path}")"
@@ -302,14 +347,14 @@ function main() {
         caddy start -c /root/Caddyfile-nocf 2>/var/log/caddy_startup.log
     fi
 
-    if [[ -n "${domain}" ]]; then
+    if [[ "${skip_https_check}" == false ]]; then
         check_public_key "${secrets_dir}" "${domain}"
     else
-        >&2 echo "Skip checking public key. Waiting 10secods instead. Specify --domain if you want script to check if key is published"
-        >&2 echo "If you are enabeling this option because your ISP doesn't let you to access your own share from you own external IP"
-        >&2 echo "you might still want to check if"
-        >&2 echo "${domain}/${key_url_path}"
-        >&2 echo "is available from your phone or other network"
+        >&2 echo "Skip checking public key. Waiting 10secods instead."
+        >&2 echo "  If you are enabeling this option because your ISP doesn't let you to access your own share from you own external IP"
+        >&2 echo "  you might still want to check if"
+        >&2 echo "  ${domain}/${key_url_path}"
+        >&2 echo "  is available from your phone or other network"
         sleep 10
     fi
 
@@ -318,6 +363,9 @@ function main() {
     resp="$(register_app "${domain}" "${token}" "${base_url}")"
     echo "${resp}" >"${secrets_dir}"/register_app_resp.jq
     >&2 jq . <<<"${resp}"
+
+    verify_registered_app "${domain}" "${token}" "${base_url}"
+
 }
 
 main "$@"
