@@ -217,7 +217,7 @@ func main() {
 		log.Fatal(http.ListenAndServe(":8934", nil))
 	}()
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(4 * time.Second)
 	err = secrets.getPartnerToken()
 	if err != nil {
 		log.Fatalf("Failed to get partner token: %v", err)
